@@ -28,19 +28,17 @@ class DeepPinkModel(nn.Module):
     def __init__(self, p, inds, rev_inds, hidden_sizes=[64], y_dist="gaussian"):
         """
         Adapted from https://arxiv.org/pdf/1809.01185.pdf.
-
         Module has two components:
         1. A sparse linear layer with dimension 2*p to p.
         However, there are only 2*p weights (each feature
         and knockoff points only to their own unique node).
         This is (maybe?) followed by a ReLU activation.
-        2. A MLP 
-
+        2. A MLP
         :param p: The dimensionality of the data
         :param hidden_sizes: A list of hidden sizes
-        for the mlp layer(s). Defaults to [64], which 
-        means there will be one two hidden layers 
-        (one p -> 64, one p -> 128). 
+        for the mlp layer(s). Defaults to [64], which
+        means there will be one two hidden layers
+        (one p -> 64, one p -> 128).
         """
 
         super().__init__()

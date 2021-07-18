@@ -11,17 +11,15 @@ from . import knockoff_stats as kstats
 class KnockoffFilter:
     """
     Performs knockoff-based inference, from start to finish.
-
-    This wraps both the ``knockoffs.KnockoffSampler`` and 
+    This wraps both the ``knockoffs.KnockoffSampler`` and
     ``knockoff_stats.FeatureStatistic`` classes.
-
-    Parameters 
+    Parameters
     ----------
     fstat : str or knockpy.knockoff_stats.FeatureStatistic
         The feature statistic to use in the knockoff filter.
         This may also be a string identifier, including:
-        - 'lasso' or 'lcd': cross-validated lasso coefficients differences 
-        - 'lsm': signed maximum of the lasso path statistic as 
+        - 'lasso' or 'lcd': cross-validated lasso coefficients differences
+        - 'lsm': signed maximum of the lasso path statistic as
             in Barber and Candes 2015
         - 'dlasso': Cross-validated debiased lasso coefficients
         - 'ridge': Cross validated ridge coefficients
@@ -36,20 +34,19 @@ class KnockoffFilter:
         - 'fx': Fixed-X knockoffs
         - 'metro': Generic metropolized knockoff sampler.
         - 'artk': t-tailed Markov chain
-        - 'blockt': Blocks of t-distributed 
+        - 'blockt': Blocks of t-distributed
         - 'gibbs_grid': Discrete gibbs grid
         An alternative to specifying the ksampler is to simply pass
         in a knockoff matrix during the ``forward`` call.
     fstat_kwargs : dict
         Kwargs to pass to the feature statistic ``fit`` function,
-        excluding the required arguments, defaults to {} 
+        excluding the required arguments, defaults to {}
     knockoff_kwargs : dict
         Kwargs for instantiating the knockoff sampler argument if
         the ksampler argument is a string identifier. This can be
         the empt dict for some identifiers such as "gaussian" or "fx",
         but additional keyword arguments are required for complex samplers
         such as the "metro" identifier. Defaults to {}
-
     Attributes
     ----------
     fstat : knockpy.knockoff_stats.FeatureStatistic
@@ -77,7 +74,7 @@ class KnockoffFilter:
     Xk : np.ndarray
         the ``(n, p)``-shaped matrix of knockoffs
     groups : np.ndarray
-        For group knockoffs, a p-length array of integers from 1 to 
+        For group knockoffs, a p-length array of integers from 1 to
         num_groups such that ``groups[j] == i`` indicates that variable `j`
         is a member of group `i`. Defaults to None (regular knockoffs).
     rejections : np.ndarray
@@ -87,30 +84,27 @@ class KnockoffFilter:
         the ``(2p, 2p)``-shaped feature-knockoff covariance matrix
     threshold : float
         the knockoff data-dependent threshold used to select variables
-
     Examples
     --------
     Here we fit the KnockoffFilter on fake data from a Gaussian
     linear model: ::
-
         # Fake data-generating process for Gaussian linear model
         import knockpy as kpy
         dgprocess = kpy.dgp.DGP()
         dgprocess.sample_data(n=500, p=500, sparsity=0.1)
-
         # LCD statistic with Gaussian MX knockoffs
         # This uses LedoitWolf covariance estimation by default.
-        from knockpy.knockoff_filter import KnockoffFilter 
-        kfilter = KnockoffFilter( 
-            fstat='lcd', 
-            ksampler='gaussian', 
-            knockoff_kwargs={"method":"mvr"}, 
+        from knockpy.knockoff_filter import KnockoffFilter
+        kfilter = KnockoffFilter(
+            fstat='lcd',
+            ksampler='gaussian',
+            knockoff_kwargs={"method":"mvr"},
         )
         rejections = kfilter.forward(X=dgprocess.X, y=dgprocess.y)
     """
 
     def __init__(
-        self, fstat="lasso", ksampler="gaussian", fstat_kwargs={}, knockoff_kwargs={},
+            self, fstat="lasso", ksampler="gaussian", fstat_kwargs={}, knockoff_kwargs={},
     ):
         """
         Initialize the class.
@@ -189,9 +183,9 @@ class KnockoffFilter:
                     X=self.X, groups=self.groups, **self.knockoff_kwargs,
                 )
             elif self.knockoff_type == "artk":
-                self.ksampler = metro.ARTKSampler(**args, **self.knockoff_kwargs,)
+                self.ksampler = metro.ARTKSampler(**args, **self.knockoff_kwargs, )
             elif self.knockoff_type == "blockt":
-                self.ksampler = metro.BlockTSampler(**args, **self.knockoff_kwargs,)
+                self.ksampler = metro.BlockTSampler(**args, **self.knockoff_kwargs, )
             elif self.knockoff_type == "metro":
                 self.ksampler = metro.MetropolizedKnockoffSampler(
                     **args, mu=self.mu, **self.knockoff_kwargs
@@ -209,7 +203,7 @@ class KnockoffFilter:
         if self.recycle_up_to is not None:
             # Split
             rec_Xk = self.X[: self.recycle_up_to]
-            new_Xk = Xk[self.recycle_up_to :]
+            new_Xk = Xk[self.recycle_up_to:]
             # Combine
             Xk = np.concatenate((rec_Xk, new_Xk), axis=0)
         self.Xk = Xk
@@ -244,23 +238,23 @@ class KnockoffFilter:
         return selected_flags
 
     def forward(
-        self,
-        X,
-        y,
-        Xk=None,
-        mu=None,
-        Sigma=None,
-        groups=None,
-        fdr=0.10,
-        fstat_kwargs={},
-        knockoff_kwargs={},
-        shrinkage="ledoitwolf",
-        num_factors=None,
-        recycle_up_to=None,
+            self,
+            X,
+            y,
+            Xk=None,
+            mu=None,
+            Sigma=None,
+            groups=None,
+            fdr=0.10,
+            fstat_kwargs={},
+            knockoff_kwargs={},
+            shrinkage="ledoitwolf",
+            num_factors=None,
+            recycle_up_to=None,
     ):
         """
         Runs the knockoff filter; returns whether each feature was rejected.
-        
+
         Parameters
         ----------
         X : np.ndarray
@@ -278,9 +272,9 @@ class KnockoffFilter:
             is estimated using the ``shrinkage`` option. This is ignored for
             fixed-X knockoffs.
         groups : np.ndarray
-            For group knockoffs, a p-length array of integers from 1 to 
+            For group knockoffs, a p-length array of integers from 1 to
             num_groups such that ``groups[j] == i`` indicates that variable `j`
-            is a member of group `i`. Defaults to ``None`` (regular knockoffs). 
+            is a member of group `i`. Defaults to ``None`` (regular knockoffs).
         fdr : float
             The desired level of false discovery rate control.
         fstat_kwargs : dict
@@ -293,11 +287,11 @@ class KnockoffFilter:
             but additional keyword arguments are required for complex samplers
             such as the "metro" identifier. Defaults to {}
         shrinkage : str
-            Shrinkage method if estimating the covariance matrix. Defaults to 
+            Shrinkage method if estimating the covariance matrix. Defaults to
             "LedoitWolf." Other options are "MLE" and "glasso" (graphical lasso).
         num_factors : int
             If num_factors is not ``None`` and Sigma is estimated,
-            assumes that the ground-truth Sigma is a factor model 
+            assumes that the ground-truth Sigma is a factor model
             with rank ``num_factors`` to speed up computation.
         recycle_up_to : int or float
             Three options:
@@ -305,7 +299,7 @@ class KnockoffFilter:
                 - if an integer > 1, uses the first "recycle_up_to"
                 rows of X as the the first ``recycle_up_to`` rows of knockoffs
                 - if a float between 0 and 1 (inclusive), interpreted
-                as the proportion of rows to recycle. 
+                as the proportion of rows to recycle.
             For more on recycling, see https://arxiv.org/abs/1602.03574
         """
 
@@ -326,7 +320,6 @@ class KnockoffFilter:
                 self.U = None
         if not self._mx:
             Sigma = None
-
 
         # Save objects
         self.X = X
