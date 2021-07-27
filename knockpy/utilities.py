@@ -7,18 +7,19 @@ import itertools
 from multiprocessing import Pool
 from functools import partial
 
+
 ### Group helpers
 def preprocess_groups(groups):
     """
     Maps the m unique elements of a 1D "groups" array to the integers from 1 to m.
     """
-    unique_vals = np.unique(groups)
+    unique_vals = np.sort(np.unique(groups))
     conversion = {unique_vals[i]: i for i in range(unique_vals.shape[0])}
     return np.array([conversion[x] + 1 for x in groups])
 
 
 def fetch_group_nonnulls(non_nulls, groups):
-    """ 
+    """
     Combines feature-level null hypotheses into group-level hypothesis.
     """
 
@@ -41,15 +42,15 @@ def fetch_group_nonnulls(non_nulls, groups):
 def calc_group_sizes(groups):
     """
     Given a list of groups, finds the sizes of the groups.
-    
+
     Parameters
     ----------
     groups : np.ndarray
         ``(p, )``-shaped array which takes m integer values from
         1 to m. If ``groups[i] == j``, this indicates that coordinate
         ``i`` belongs to group ``j``.
-    :param groups: p-length array of integers between 1 and m, 
-    
+    :param groups: p-length array of integers between 1 and m,
+
     Returns
     -------
     sizes : np.ndarray
@@ -101,10 +102,10 @@ def shift_until_PSD(M, tol):
 
 
 def scale_until_PSD(Sigma, S, tol, num_iter):
-    """ 
+    """
     Perform a binary search to find the largest ``gamma`` such that the minimum
     eigenvalue of ``2*Sigma - gamma*S`` is at least ``tol``.
-    
+
     Returns
     -------
     gamma * S : np.ndarray
@@ -159,7 +160,6 @@ def permute_matrix_by_groups(groups):
 def blockdiag_to_blocks(M, groups):
     """
     Given a square array `M`, returns a list of diagonal blocks of `M` as specified by `groups`.
-
     Parameters
     ----------
     M : np.ndarray
@@ -167,7 +167,6 @@ def blockdiag_to_blocks(M, groups):
     groups : np.ndarray
         ``(p, )``-shaped array with m unique values. If ``groups[i] == j``,
         this indicates that coordinate ``i`` belongs to group ``j``.
-
     Returns
     -------
     blocks : list
@@ -187,14 +186,13 @@ def random_permutation_inds(length):
     """ Returns indexes which will randomly permute/unpermute a numpy
     array of length `length`. Also returns indices which will
     undo this permutation.
-
     Returns
     -------
     inds : np.ndarray
         ``(length,)``-shaped ndarray corresponding to a random permutation
         from 0 to `length`-1.
     rev_inds : np.ndarray
-        ``(length,)``-shaped ndarray such that for any ``(length,)``-shaped 
+        ``(length,)``-shaped ndarray such that for any ``(length,)``-shaped
         array called ``x``, ``x[inds][rev_inds]`` equals ``x``.
     """
     # Create inds and rev inds
@@ -212,58 +210,53 @@ def estimate_factor(Sigma, num_factors=20, num_iter=10):
     """
     Approximates ``Sigma = np.diag(D) + np.dot(U, U.T)``.
     See https://arxiv.org/pdf/2006.08790.pdf.
-
     Parameters
     ----------
     Sigma : np.ndarray
         ``(p, p)``-shaped covariance matrix of X
     num_factors : int
         Dimensionality of ``U``.
-
     Notes
     -----
     TODO: allow X as an input when Sigma does not
     fit in memory.
-
     Returns
     -------
     D : np.ndarray
         ``(p,)``-shaped array of diagonal elements.
     U : np.ndarray
-        ``(p, num_factors)``-shaped array. 
+        ``(p, num_factors)``-shaped array.
     """
     p = Sigma.shape[0]
-    # Problem is trivial in this case 
+    # Problem is trivial in this case
     if num_factors >= p:
         return np.zeros((p, p)), sp.linalg.sqrtm(Sigma)
 
     # Coordinate ascent
     D = np.zeros(p)
     for i in range(num_iter):
-        evals, evecs = eigsh(Sigma-np.diag(D), num_factors, which='LM')
+        evals, evecs = eigsh(Sigma - np.diag(D), num_factors, which='LM')
         U = np.dot(evecs, np.diag(np.maximum(0, np.sqrt(evals))))
         D = np.diag(Sigma - np.power(U, 2).sum(axis=1))
-        #loss = np.power(Sigma - np.diag(D) - np.dot(U, U.T), 2).sum()
+        # loss = np.power(Sigma - np.diag(D) - np.dot(U, U.T), 2).sum()
 
     return D, U
 
 
 def estimate_covariance(X, tol=1e-4, shrinkage="ledoitwolf", **kwargs):
-    """ Estimates covariance matrix of X. 
-
+    """ Estimates covariance matrix of X.
     Parameters
     ----------
     X : np.ndarray
         ``(n, p)``-shaped design matrix
     shrinkage : str
         The type of shrinkage to apply during estimation. One of
-        "ledoitwolf", "graphicallasso", or None (no shrinkage). 
+        "ledoitwolf", "graphicallasso", or None (no shrinkage).
     tol : float
         If shrinkage is None but the minimum eigenvalue of the MLE
         is below tol, apply LedoitWolf shrinkage anyway.
     kwargs : dict
         kwargs to pass to the shrinkage estimator.
-
     Returns
     -------
     Sigma : np.ndarray
@@ -284,7 +277,7 @@ def estimate_covariance(X, tol=1e-4, shrinkage="ledoitwolf", **kwargs):
         if str(shrinkage).lower() == "ledoitwolf" or shrinkage is None:
             ShrinkEst = sklearn.covariance.LedoitWolf(**kwargs)
         elif str(shrinkage).lower() == "graphicallasso":
-            kwargs['alpha'] = kwargs.get('alpha', 0.1) # Default regularization
+            kwargs['alpha'] = kwargs.get('alpha', 0.1)  # Default regularization
             ShrinkEst = sklearn.covariance.GraphicalLasso(**kwargs)
         else:
             raise ValueError(
@@ -319,7 +312,7 @@ def _one_arg_function(list_of_inputs, args, func, kwargs):
     :param list of inputs: List of inputs to a function
     :param args: Names/args for those inputs
     :param func: A function
-    :param kwargs: Other kwargs to pass to the function. 
+    :param kwargs: Other kwargs to pass to the function.
     """
     new_kwargs = {}
     for i, inp in enumerate(list_of_inputs):
@@ -330,8 +323,8 @@ def _one_arg_function(list_of_inputs, args, func, kwargs):
 def apply_pool(func, constant_inputs={}, num_processes=1, **kwargs):
     """
     Spawns num_processes processes to apply func to many different arguments.
-    This wraps the multiprocessing.pool object plus the functools partial function. 
-    
+    This wraps the multiprocessing.pool object plus the functools partial function.
+
     Parameters
     ----------
     func : function
@@ -344,12 +337,10 @@ def apply_pool(func, constant_inputs={}, num_processes=1, **kwargs):
     kwargs : dict
         Each key should correspond to an argument to func and should
         map to a list of different arguments.
-
     Returns
     -------
     outputs : list
         List of outputs for each input, in the order of the inputs.
-
     Examples
     --------
     If we are varying inputs 'a' and 'b', we might have

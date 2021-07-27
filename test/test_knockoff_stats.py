@@ -17,6 +17,7 @@ DEFAULT_SAMPLE_KWARGS = {
 
 try:
     import torch
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -24,15 +25,15 @@ except ImportError:
 
 class KStatVal(unittest.TestCase):
     def check_kstat_fit(
-        self,
-        fstat,
-        fstat_name,
-        fstat_kwargs={},
-        min_power=0.8,
-        max_l2norm=9,
-        seed=110,
-        group_features=False,
-        **sample_kwargs,
+            self,
+            fstat,
+            fstat_name,
+            fstat_kwargs={},
+            min_power=0.8,
+            max_l2norm=9,
+            seed=110,
+            group_features=False,
+            **sample_kwargs,
     ):
         """ fstat should be a class instance inheriting from FeatureStatistic """
 
@@ -107,6 +108,8 @@ class KStatVal(unittest.TestCase):
             power >= min_power,
             msg=f"Power {power} for {fstat_name} in equicor case (n={n},p={p},rho={rho}, y_dist {y_dist}, grouped={group_features}) should be > {min_power}. W stats are {W}, beta is {beta}",
         )
+
+        # Test symmetric property of null W
 
 
 class TestFeatureStatistics(KStatVal):
@@ -254,7 +257,7 @@ class TestFeatureStatistics(KStatVal):
     def test_vanilla_group_lasso_fit(self):
 
         glasso_kwargs = {
-            "use_pyglm": False, 
+            "use_pyglm": False,
             "group_lasso": True,
         }
         self.check_kstat_fit(
@@ -773,7 +776,6 @@ class TestBaseFeatureStatistic(KStatVal):
     """ Tests performance of Vanilla feature statistic """
 
     def test_errors(self):
-
         fstat = kstats.FeatureStatistic()
 
     def test_nbayes(self):
@@ -822,7 +824,6 @@ class TestDataThreshhold(unittest.TestCase):
     """ Tests data-dependent threshhold """
 
     def test_unbatched(self):
-
         W1 = np.array([1, -2, 3, 6, 3, -2, 1, 2, 5, 3, 0.5, 1, 1, 1, 1, 1, 1, 1])
         T1 = data_dependent_threshhold(W1, fdr=0.2)
         expected = np.abs(W1).min()
@@ -846,7 +847,6 @@ class TestDataThreshhold(unittest.TestCase):
         )
 
     def test_batched(self):
-
         W1 = np.array([1] * 10)
         W2 = np.array([-2, -1, 1, 2, 3, 4, 5, 6, 7, 8])
         W3 = np.array([-1] * 10)

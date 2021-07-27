@@ -137,6 +137,8 @@ class KnockoffFilter:
             fstat = kstats.RandomForestStatistic()
         elif fstat == "deeppink":
             fstat = kstats.DeepPinkStatistic()
+        elif fstat == "newdeeppink":
+            fstat = kstats.NewDeepPinkStatistic()
         else:
             raise ValueError(f"Unrecognized fstat {fstat}")
         self.fstat = fstat
@@ -234,6 +236,7 @@ class KnockoffFilter:
     def make_selections(self, W, fdr):
         """" Calculate data dependent threshhold and selections """
         self.threshold = kstats.data_dependent_threshhold(W=W, fdr=fdr)
+        # print(self.threshold)
         selected_flags = (W >= self.threshold).astype("float32")
         return selected_flags
 

@@ -89,7 +89,9 @@ def combine_Z_stats(Z, groups=None, antisym="cd", group_agg="sum"):
             f"Unexpected shape {Z.shape} for Z statistics (expected ({2 * p},))"
         )
     if groups is None:
-        groups = np.arange(1, p + 1, 1)
+        groups = np.arange(1, p + 1)
+    else:
+        groups = utilities.preprocess_groups(groups)
 
     antisym = str(antisym).lower()
     # Absolute coefficient differences
@@ -1256,7 +1258,7 @@ class RandomForestStatistic(FeatureStatistic):
 
         # By default, all variables are their own group
         if groups is None:
-            groups = np.arange(0, p, 1)
+            groups = np.arange(1, p + 1)
         self.groups = groups
 
         # Parse y_dist, initialize model
@@ -1269,7 +1271,8 @@ class RandomForestStatistic(FeatureStatistic):
         else:
             self.model = ensemble.RandomForestClassifier(**kwargs)
 
-        # Fit model, get Z statistics
+        # Fit model, get Z statistics.
+        # Note this does the randomization of features by itself.
         self.model.fit(features, y)
         feature_importance = str(feature_importance).lower()
         if feature_importance == "default":
@@ -1350,10 +1353,9 @@ class DeepPinkStatistic(FeatureStatistic):
             "sum" and "avg".
         cv_score : bool
             If true, score the feature statistic's predictive accuracy
-            using cross validation. This is extremely expensive for random
-            forests.
+            using cross validation. This is extremely expensive for deeppink.
         kwargs : dict
-            Extra kwargs to pass to underlying RandomForest class
+            Extra kwargs to pass to underlying deeppink class (in kpytorch)
         Returns
         -------
         W : np.ndarray
@@ -1371,22 +1373,22 @@ class DeepPinkStatistic(FeatureStatistic):
         p = X.shape[1]
         features = np.concatenate([X, Xk], axis=1)
 
-        # Randomize coordinates to make sure everything is symmetric
-        self.inds = np.arange(0, 2 * p, 1)
-        self.rev_inds = np.arange(0, 2 * p, 1)
+        # The deeppink model class will shuffle statistics,
+        # but for compatability we create indices anyway
+        self.inds = np.arange(2 * p)
+        self.rev_inds = self.inds
 
         # By default, all variables are their own group
         if groups is None:
-            groups = np.arange(0, p, 1)
+            groups = np.arange(1, p + 1)
         self.groups = groups
 
         # Parse y_dist, hidden_sizes, initialize model
         y_dist = parse_y_dist(y)
         if "hidden_sizes" not in kwargs:
             kwargs["hidden_sizes"] = [min(n, p)]
-        self.model = deeppink.DeepPinkModel(
-            p=p, inds=self.inds, rev_inds=self.inds, **kwargs
-        )
+        self.model = deeppink.DeepPinkModel(p=p, **kwargs)
+
         # Train model
         self.model.train()
         self.model = deeppink.train_deeppink(self.model, features, y, **train_kwargs)
@@ -1395,7 +1397,9 @@ class DeepPinkStatistic(FeatureStatistic):
         # Get Z statistics
         feature_importance = str(feature_importance).lower()
         if feature_importance == "deeppink":
-            self.Z = self.model.feature_importances()
+            self.Z = self.model.feature_importances(weight_scores=True)
+        elif feature_importance == "newdepping":
+            self.Z = self.model.feature_importances(weight_scores=True)
         elif feature_importance == "unweighted":
             self.Z = self.model.feature_importances(weight_scores=False)
         elif feature_importance == "swap":
@@ -1405,6 +1409,131 @@ class DeepPinkStatistic(FeatureStatistic):
         else:
             raise ValueError(
                 f"feature_importance {feature_importance} must be one of 'deeppink', 'unweighted', 'swap', 'swapint'"
+            )
+
+        # Get W statistics
+        self.W = combine_Z_stats(
+            self.Z, self.groups, antisym=antisym, group_agg=group_agg
+        )
+
+        # Possibly score model
+        self.cv_score_model(features=features, y=y, cv_score=cv_score)
+
+        return self.W
+
+
+class NewDeepPinkStatistic(FeatureStatistic):
+    def fit(
+            self,
+            X,
+            Xk,
+            y,
+            groups=None,
+            feature_importance="newdeeppink",
+            antisym="cd",
+            group_agg="sum",
+            cv_score=False,
+            train_kwargs={"verbose": False},
+            **kwargs,
+    ):
+        """
+        Wraps the FeatureStatistic class using DeepPINK to generate
+        variable importances.
+        Parameters
+        ----------
+        X : np.ndarray
+            the ``(n, p)``-shaped design matrix
+        Xk : np.ndarray
+            the ``(n, p)``-shaped matrix of knockoffs
+        y : np.ndarray
+            ``(n,)``-shaped response vector
+        groups : np.ndarray
+            For group knockoffs, a p-length array of integers from 1 to
+            num_groups such that ``groups[j] == i`` indicates that variable `j`
+            is a member of group `i`. Defaults to None (regular knockoffs).
+        feature_importance : str
+            Specifies how to create feature importances from ``model``.
+            Four options:
+                - "deeppink": Use the deeppink feature importance
+                defined in https://arxiv.org/abs/1809.01185
+                - "unweighted": Use the Z weights from the deeppink
+                paper without weighting them using the layers from
+                the MLP. Deeppink usually outperforms this feature
+                importance (but not always).
+                - "swap": The default swap-statistic from
+                http://proceedings.mlr.press/v89/gimenez19a/gimenez19a.pdf
+                - "swapint": The swap-integral defined from
+                http://proceedings.mlr.press/v89/gimenez19a/gimenez19a.pdf
+            Defaults to deeppink, which is often both the most powerful and
+            the most computationally efficient.
+        antisym : str
+            The antisymmetric function used to create (ungrouped) feature
+            statistics. Three options:
+            - "CD" (Difference of absolute vals of coefficients),
+            - "SM" (signed maximum).
+            - "SCD" (Simple difference of coefficients - NOT recommended)
+        group_agg : str
+            For group knockoffs, specifies how to turn individual feature
+            statistics into grouped feature statistics. Two options:
+            "sum" and "avg".
+        cv_score : bool
+            If true, score the feature statistic's predictive accuracy
+            using cross validation. This is extremely expensive for deeppink.
+        kwargs : dict
+            Extra kwargs to pass to underlying deeppink class (in kpytorch)
+        Returns
+        -------
+        W : np.ndarray
+            an array of feature statistics. This is ``(p,)``-dimensional
+            for regular knockoffs and ``(num_groups,)``-dimensional for
+            group knockoffs.
+        """
+
+        # Check if kpytorch (and therefore deeppink) is available.
+        utilities.check_kpytorch_available(purpose="newdeepPINK statistics")
+        from .kpytorch import new_deeppink
+
+        # Bind data
+        n = X.shape[0]
+        p = X.shape[1]
+        features = np.concatenate([X, Xk], axis=1)
+
+        # The deeppink model class will shuffle statistics,
+        # but for compatability we create indices anyway
+        self.inds = np.arange(2 * p)
+        self.rev_inds = self.inds
+
+        # By default, all variables are their own group
+        if groups is None:
+            groups = np.arange(1, p + 1)
+        self.groups = groups
+
+        # Parse y_dist, hidden_sizes, initialize model
+        y_dist = parse_y_dist(y)
+        if "hidden_sizes" not in kwargs:
+            kwargs["hidden_sizes"] = [min(n, p)]
+        self.model = new_deeppink.NewDeepPinkModel(p=p, **kwargs)
+
+        # Train model
+        self.model.train()
+        self.model = new_deeppink.train_newdeeppink(self.model, features, y, **train_kwargs)
+        self.model.eval()
+
+        # Get Z statistics
+        feature_importance = str(feature_importance).lower()
+        if feature_importance == "deeppink":
+            self.Z = self.model.feature_importances(weight_scores=True)
+        elif feature_importance == "newdeeppink":
+            self.Z = self.model.feature_importances(weight_scores=True)
+        elif feature_importance == "unweighted":
+            self.Z = self.model.feature_importances(weight_scores=False)
+        elif feature_importance == "swap":
+            self.Z = self.swap_feature_importances(features, y)
+        elif feature_importance == "swapint":
+            self.Z = self.swap_path_feature_importances(features, y)
+        else:
+            raise ValueError(
+                f"feature_importance {feature_importance} must be one of 'deeppink', 'newdeeppink', 'unweighted', 'swap', 'swapint'"
             )
 
         # Get W statistics
