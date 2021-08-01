@@ -8,7 +8,7 @@ from group_lasso import GroupLasso, LogisticGroupLasso
 from pyglmnet import GLMCV
 from . import utilities
 from .constants import DEFAULT_REG_VALS
-
+from tabnet import TabNetDeepPinkModel, get_feature_importance
 
 def calc_mse(model, X, y):
     """ Gets MSE of a model """
@@ -593,7 +593,6 @@ class FeatureStatistic:
         features = np.concatenate([X, Xk], axis=1)
         self.inds, self.rev_inds = utilities.random_permutation_inds(2 * p)
         features = features[:, self.inds]
-
         # Train model
         if hasattr(self.model, "train"):
             self.model.train(features, y, **kwargs)
@@ -603,7 +602,6 @@ class FeatureStatistic:
             raise ValueError(
                 f"model {self.model} must have either a 'fit' or 'train' method"
             )
-
         # Score using swap importances
         if feature_importance == "swap":
             self.Z = self.swap_feature_importances(features, y)
@@ -611,7 +609,6 @@ class FeatureStatistic:
             self.Z = self.swap_path_feature_importances(features, y)
         else:
             raise ValueError(f"Unrecognized feature_importance {feature_importance}")
-
         # Combine Z statistics
         self.groups = groups
         self.W = combine_Z_stats(
@@ -1421,6 +1418,55 @@ class DeepPinkStatistic(FeatureStatistic):
 
         return self.W
 
+
+class TabNETStatistic(FeatureStatistic):
+    def fit(self, X, Xk, y, groups=None, feature_importance="tabnet", antisym="cd", group_agg="sum", cv_score=False, train_kwargs={"verbose": False}, **kwargs, ):
+        # Check if kpytorch (and therefore deeppink) is available.
+        utilities.check_kpytorch_available(purpose="tabnet statistics")
+        # Bind data
+        p = X.shape[1]
+        features = np.concatenate([X, Xk], axis=1)
+
+        # The deeppink model class will shuffle statistics,
+        # but for compatability we create indices anyway
+        self.inds = np.arange(2 * p)
+        self.rev_inds = self.inds
+
+        # By default, all variables are their own group
+        if groups is None:
+            groups = np.arange(1, p + 1)
+        self.groups = groups
+
+        self.model = TabNetDeepPinkModel(p)
+        # Parse y_dist, hidden_sizes, initialize model
+        y_dist = parse_y_dist(y)
+
+        # Get Z statistics
+        feature_importance = str(feature_importance).lower()
+        if feature_importance == "deeppink":
+            self.Z = self.model.feature_importances(weight_scores=True)
+        elif feature_importance == "newdeeppink":
+            self.Z = self.model.feature_importances(weight_scores=True)
+        elif feature_importance == "tabnet":
+            self.Z = self.model.feature_importances()
+        elif feature_importance == "unweighted":
+            self.Z = self.model.feature_importances(weight_scores=False)
+        elif feature_importance == "swap":
+            self.Z = self.swap_feature_importances(features, y)
+        elif feature_importance == "swapint":
+            self.Z = self.swap_path_feature_importances(features, y)
+        else:
+            raise ValueError(
+                f"feature_importance {feature_importance} must be one of 'deeppink', 'newdeeppink', 'unweighted', 'swap', 'swapint'"
+            )
+        # Get W statistics
+        print(f"self Z: {self.Z}")
+        self.W = combine_Z_stats(
+            self.Z, self.groups, antisym=antisym, group_agg=group_agg)
+
+        # Possibly score model
+        self.cv_score_model(features=features, y=y, cv_score=cv_score)
+        return self.W
 
 class NewDeepPinkStatistic(FeatureStatistic):
     def fit(

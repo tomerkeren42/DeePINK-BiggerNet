@@ -74,22 +74,18 @@ class DeepPinkModel(nn.Module):
         else:
             mlp_layers.append(nn.Linear(hidden_sizes[-1], 2))
 
-
         # Then create MLP
         self.mlp = nn.Sequential(*mlp_layers)
 
         # print(self.mlp)
 
     def _fetch_Z_weight(self):
-
         # Possibly don't normalize
         if not self.norm_Z_weight:
             return self.Z_weight
 
         # Else normalize, first construct denominator
-        normalizer = torch.abs(self.Z_weight[self.feature_inds]) + torch.abs(
-            self.Z_weight[self.ko_inds]
-        )
+        normalizer = torch.abs(self.Z_weight[self.feature_inds]) + torch.abs(self.Z_weight[self.ko_inds])
         # Normalize
         Z = torch.abs(self.Z_weight[self.feature_inds]) / normalizer
         Ztilde = torch.abs(self.Z_weight[self.ko_inds]) / normalizer
@@ -134,7 +130,6 @@ class DeepPinkModel(nn.Module):
         return out
 
     def feature_importances(self, weight_scores=True):
-
         with torch.no_grad():
             # Calculate weights from MLP
             if weight_scores:

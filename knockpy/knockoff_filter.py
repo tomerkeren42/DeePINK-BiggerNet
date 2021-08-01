@@ -139,6 +139,8 @@ class KnockoffFilter:
             fstat = kstats.DeepPinkStatistic()
         elif fstat == "newdeeppink":
             fstat = kstats.NewDeepPinkStatistic()
+        elif fstat == "tabnet":
+            fstat = kstats.TabNETStatistic()
         else:
             raise ValueError(f"Unrecognized fstat {fstat}")
         self.fstat = fstat
@@ -236,18 +238,13 @@ class KnockoffFilter:
     def make_selections(self, W, fdr):
         """" Calculate data dependent threshhold and selections """
         self.threshold = kstats.data_dependent_threshhold(W=W, fdr=fdr)
+        print(f"self.threshold: {self.threshold}")
         # print(self.threshold)
         selected_flags = (W >= self.threshold).astype("float32")
         return selected_flags
 
     def forward(
-            self,
-            X,
-            y,
-            Xk=None,
-            mu=None,
-            Sigma=None,
-            groups=None,
+            self, X, y, Xk=None, mu=None, Sigma=None, groups=None,
             fdr=0.10,
             fstat_kwargs={},
             knockoff_kwargs={},
@@ -305,7 +302,6 @@ class KnockoffFilter:
                 as the proportion of rows to recycle.
             For more on recycling, see https://arxiv.org/abs/1602.03574
         """
-
         # Preliminaries - infer covariance matrix for MX
         if Sigma is None and self._mx:
             Sigma, _ = utilities.estimate_covariance(X, 1e-2, shrinkage)
@@ -335,7 +331,6 @@ class KnockoffFilter:
             self.fstat_kwargs[key] = fstat_kwargs[key]
         for key in knockoff_kwargs:
             self.knockoff_kwargs[key] = knockoff_kwargs[key]
-
         # Save n, p, groups
         n = X.shape[0]
         p = X.shape[1]
@@ -369,6 +364,7 @@ class KnockoffFilter:
         self.W = self.fstat.W
         self.score = self.fstat.score
         self.score_type = self.fstat.score_type
+        print(f"self.W: {self.W}, fdr: {fdr}")
         self.rejections = self.make_selections(self.W, fdr)
 
         # Return

@@ -65,20 +65,20 @@ class NewDeepPinkModel(nn.Module):
         k=p
 
         # Create MLP layers
-        mlp_layers = [nn.Linear(p, hidden_sizes[0])]
-        for i in range(1):
-            mlp_layers.append(nn.ReLU())
-            mlp_layers.append(nn.Linear(k, k-100))
-            k=k-100
-        # Prepare for either MSE loss or cross entropy loss
-        mlp_layers.append(nn.ReLU())
-        if y_dist == "gaussian":
-            mlp_layers.append(nn.Linear(k, 1))
-        else:
-            mlp_layers.append(nn.Linear(hidden_sizes[-1], 2))
-
-        # Then create MLP
-        self.mlp = nn.Sequential(*mlp_layers)
+        # mlp_layers = [nn.Linear(p, hidden_sizes[0])]
+        # # for i in range(1):
+        # #     mlp_layers.append(nn.ReLU())
+        # #     mlp_layers.append(nn.Linear(k, k-100))
+        # #     k=k-100
+        # # Prepare for either MSE loss or cross entropy loss
+        # mlp_layers.append(nn.ReLU())
+        # if y_dist == "gaussian":
+        #     mlp_layers.append(nn.Linear(k, 1))
+        # else:
+        #     mlp_layers.append(nn.Linear(hidden_sizes[-1], 2))
+        #
+        # # Then create MLP
+        # self.mlp = nn.Sequential(*mlp_layers)
         # print(self.mlp)
 
         # from pytorch_tabnet.tab_model import TabNetClassifier, TabNetRegressor
@@ -138,7 +138,6 @@ class NewDeepPinkModel(nn.Module):
         return out
 
     def feature_importances(self, weight_scores=True):
-
         with torch.no_grad():
             # Calculate weights from MLP
             if weight_scores:
