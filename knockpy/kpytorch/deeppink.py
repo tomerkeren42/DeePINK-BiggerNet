@@ -77,13 +77,11 @@ class DeepPinkModel(nn.Module):
         # Then create MLP
         self.mlp = nn.Sequential(*mlp_layers)
 
-        # print(self.mlp)
 
     def _fetch_Z_weight(self):
         # Possibly don't normalize
         if not self.norm_Z_weight:
             return self.Z_weight
-
         # Else normalize, first construct denominator
         normalizer = torch.abs(self.Z_weight[self.feature_inds]) + torch.abs(self.Z_weight[self.ko_inds])
         # Normalize
@@ -96,14 +94,13 @@ class DeepPinkModel(nn.Module):
         """
         Note: features are now shuffled
         """
-
         # First layer: pairwise weights (and sum)
         if not isinstance(features, torch.Tensor):
             features = torch.tensor(features).float()
+
         features = features[:, self.inds] # shuffle features to prevent FDR violations
         features = self._fetch_Z_weight().unsqueeze(dim=0) * features
         features = features[:, self.feature_inds] - features[:, self.ko_inds]
-
         # Apply MLP
         return self.mlp(features)
 
@@ -173,7 +170,6 @@ def train_deeppink(
 
     # Batchsize can't be bigger than n
     batchsize = min(features.shape[0], batchsize)
-
     # Create criterion
     features, y = map(lambda x: torch.tensor(x).detach().float(), (features, y))
     if model.y_dist == "gaussian":
@@ -192,7 +188,6 @@ def train_deeppink(
         batches = create_batches(features, y, batchsize=batchsize)
         predictive_loss = 0
         for Xbatch, ybatch in batches:
-
             # Forward pass and loss
             output = model(Xbatch)
             loss = criterion(output, ybatch.unsqueeze(-1))

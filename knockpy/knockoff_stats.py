@@ -9,6 +9,7 @@ from pyglmnet import GLMCV
 from . import utilities
 from .constants import DEFAULT_REG_VALS
 from tabnet import TabNetDeepPinkModel, get_feature_importance
+import tabnet
 
 def calc_mse(model, X, y):
     """ Gets MSE of a model """
@@ -754,7 +755,6 @@ class FeatureStatistic:
         """
         Similar to score_model, but uses cross-validated scoring if cv_score=True.
         """
-
         # Possibly, compute CV MSE/Accuracy, although this
         # can be very expensive (e.g. for LARS solver)
         if cv_score:
@@ -1385,12 +1385,10 @@ class DeepPinkStatistic(FeatureStatistic):
         if "hidden_sizes" not in kwargs:
             kwargs["hidden_sizes"] = [min(n, p)]
         self.model = deeppink.DeepPinkModel(p=p, **kwargs)
-
         # Train model
         self.model.train()
         self.model = deeppink.train_deeppink(self.model, features, y, **train_kwargs)
         self.model.eval()
-
         # Get Z statistics
         feature_importance = str(feature_importance).lower()
         if feature_importance == "deeppink":
@@ -1412,7 +1410,6 @@ class DeepPinkStatistic(FeatureStatistic):
         self.W = combine_Z_stats(
             self.Z, self.groups, antisym=antisym, group_agg=group_agg
         )
-
         # Possibly score model
         self.cv_score_model(features=features, y=y, cv_score=cv_score)
 
@@ -1426,7 +1423,6 @@ class TabNETStatistic(FeatureStatistic):
         # Bind data
         p = X.shape[1]
         features = np.concatenate([X, Xk], axis=1)
-
         # The deeppink model class will shuffle statistics,
         # but for compatability we create indices anyway
         self.inds = np.arange(2 * p)
@@ -1438,13 +1434,14 @@ class TabNETStatistic(FeatureStatistic):
         self.groups = groups
 
         self.model = TabNetDeepPinkModel(p)
+        self.model.tabnet_model = tabnet.train_deeppink(self.model, features, y, **train_kwargs)
         # Parse y_dist, hidden_sizes, initialize model
         y_dist = parse_y_dist(y)
 
         # Get Z statistics
         feature_importance = str(feature_importance).lower()
         if feature_importance == "deeppink":
-            self.Z = self.model.feature_importances(weight_scores=True)
+            self.Z = self.model.feature_importances(weight_scores=False)
         elif feature_importance == "newdeeppink":
             self.Z = self.model.feature_importances(weight_scores=True)
         elif feature_importance == "tabnet":
@@ -1460,10 +1457,9 @@ class TabNETStatistic(FeatureStatistic):
                 f"feature_importance {feature_importance} must be one of 'deeppink', 'newdeeppink', 'unweighted', 'swap', 'swapint'"
             )
         # Get W statistics
-        print(f"self Z: {self.Z}")
+        # print(f"self Z: {self.Z}")
         self.W = combine_Z_stats(
             self.Z, self.groups, antisym=antisym, group_agg=group_agg)
-
         # Possibly score model
         self.cv_score_model(features=features, y=y, cv_score=cv_score)
         return self.W

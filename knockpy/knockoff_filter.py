@@ -364,7 +364,7 @@ class KnockoffFilter:
         self.W = self.fstat.W
         self.score = self.fstat.score
         self.score_type = self.fstat.score_type
-        print(f"self.W: {self.W}, fdr: {fdr}")
+        # print(f"self.W: {self.W}, fdr: {fdr}")
         self.rejections = self.make_selections(self.W, fdr)
 
         # Return
