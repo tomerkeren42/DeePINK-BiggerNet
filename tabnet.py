@@ -35,6 +35,8 @@ class TabNetDeepPinkModel(nn.Module):
         self.feature_inds = self.rev_inds[0:self.p]
         self.ko_inds = self.rev_inds[self.p:]
 
+        self.mlp = [nn.Linear(p, hidden_sizes[0])]
+        self.relu = (nn.ReLU())
         self.tabnet_model = self.get_tabnet_model()
 
     def _fetch_Z_weight(self):
@@ -63,6 +65,8 @@ class TabNetDeepPinkModel(nn.Module):
         features = features[:, self.feature_inds] - features[:, self.ko_inds]
 
         # Apply tabnet
+        features = self.mlp(features)
+        features = self.relu(features)
         return self.tabnet_model.predict(features)
 
     def predict(self, features):
@@ -70,9 +74,8 @@ class TabNetDeepPinkModel(nn.Module):
         Wraps forward method, for compatibility
         with sklearn classes.
         """
-        # with torch.no_grad():
-        # TODO: changed this
-        return self.forward(features) # .numpy()
+        with torch.no_grad():
+            return self.forward(features) # .numpy()
 
     def l1norm(self):
         out = 0
@@ -88,15 +91,26 @@ class TabNetDeepPinkModel(nn.Module):
         out += (self.Z_weight ** 2).sum()
         return out
 
-    def feature_importances(self):
+    def feature_importances(self, weight_scores=False):
         # TODO: get W from tabnet model
-        W = np.ones(self.p)
-        # Multiply by Z weights
-        Z = self._fetch_Z_weight().detach().numpy()
-        feature_imp = Z[self.feature_inds] * W
-        knockoff_imp = Z[self.ko_inds] * W
-        # print(f"feature_imp {feature_imp}")
-        return np.concatenate([feature_imp, knockoff_imp])
+        with torch.no_grad():
+            if weight_scores:
+                layers = list(self.mlp.named_children())
+                W = layers[0][1].weight.detach().numpy().T
+                for layer in layers[1:]:
+                    if isinstance(layer[1], nn.ReLU):
+                        continue
+                    weight = layer[1].weight.detach().numpy().T
+                    W = np.dot(W, weight)
+                    W = W.squeeze(-1)
+            else:
+                W = np.ones(self.p)
+            # Multiply by Z weights
+            Z = self._fetch_Z_weight().detach().numpy()
+            feature_imp = Z[self.feature_inds] * W
+            knockoff_imp = Z[self.ko_inds] * W
+            # print(f"feature_imp {feature_imp}")
+            return np.concatenate([feature_imp, knockoff_imp])
 
     @staticmethod
     def get_tabnet_model(max_epoches=100, patience=150, verbose=0):
@@ -120,6 +134,7 @@ class TabNetDeepPinkModel(nn.Module):
         # predictions = np.mean(predictions_array, axis=0)
 
         # print("The CV score is %.5f" % np.mean(CV_score_array, axis=0))
+
         tabnet_regression = TabNetRegressor(verbose=verbose, seed=42)
         return tabnet_regression
 
@@ -143,43 +158,45 @@ def train_deeppink(
     # if lambda2 is None:
     #     lambda2 = 0
     # batchsize = min(features.shape[0], batchsize)
-    # features = torch.tensor(features).detach().float()
-    # features = features[:, model.inds]  # shuffle features to prevent FDR violations
-    # features = model._fetch_Z_weight().unsqueeze(dim=0) * features
-    # features = features[:, model.feature_inds] - features[:, model.ko_inds]
-    #
-    # opt = torch.optim.Adam
-    #
-    # tabnet_regression = TabNetRegressor(verbose=verbose, seed=42, optimizer_fn=opt)
-    # for j in range(num_epochs):
-    #     # Create batches, loop through
-    #     batches = create_batches(features, y, batchsize=batchsize)
-    #     predictive_loss = 0
-    #     for Xbatch, ybatch in batches:
-    #         Xbatch = Xbatch.detach().numpy()
-    #         tabnet_regression.fit(X_train=Xbatch, y_train=ybatch.reshape(-1, 1),
-    #                                   patience=150, max_epochs=5,
-    #                                   eval_metric=['rmse'])
+    batchsize = features.shape[0]
     features = torch.tensor(features).detach().float()
     features = features[:, model.inds]  # shuffle features to prevent FDR violations
     features = model._fetch_Z_weight().unsqueeze(dim=0) * features
     features = features[:, model.feature_inds] - features[:, model.ko_inds]
+    # features = features.detach().numpy()
+
+    # opt = torch.optim.Adam(model.parameters(), **kwargs)
+    # opt = torch.optim.Adam
+    #
+    # tabnet_regression = TabNetRegressor(verbose=verbose, seed=42, optimizer_fn=opt)
+    for j in range(num_epochs):
+        # Create batches, loop through
+        batches = create_batches(features, y, batchsize=batchsize)
+        predictive_loss = 0
+        for Xbatch, ybatch in batches:
+            Xbatch = Xbatch.detach().numpy()
+            model.tabnet.fit(X_train=Xbatch, y_train=ybatch.reshape(-1, 1),
+                                      patience=10, max_epochs=20)
+    # features = torch.tensor(features).detach().float()
+    # features = features[:, model.inds]  # shuffle features to prevent FDR violations
+    # features = model._fetch_Z_weight().unsqueeze(dim=0) * features
+    # features = features[:, model.feature_inds] - features[:, model.ko_inds]
     features = features.detach().numpy()
 
 
 
-    kf = KFold(n_splits=2, random_state=42, shuffle=True)
-    # features, y = map(lambda x: torch.tensor(x).detach().float(), (features, y))
-    for train_index, test_index in kf.split(features):
-        X_train, X_valid = features[train_index], features[test_index]
-        y_train, y_valid = y.reshape(-1,1)[train_index], y.reshape(-1,1)[test_index]
-        # tabnet_regression = TabNetRegressor(verbose=verbose, seed=42)
-        model.tabnet_model.fit(X_train=X_train, y_train=y_train,
-                              patience=150, max_epochs=10,
-                              eval_metric=['rmse'])
+    # kf = KFold(n_splits=2, random_state=42, shuffle=True)
+    # # features, y = map(lambda x: torch.tensor(x).detach().float(), (features, y))
+    # for train_index, test_index in kf.split(features):
+    #     X_train, X_valid = features[train_index], features[test_index]
+    #     y_train, y_valid = y.reshape(-1,1)[train_index], y.reshape(-1,1)[test_index]
+    #     # tabnet_regression = TabNetRegressor(verbose=verbose, seed=42)
+    #     model.tabnet_model.fit(X_train=X_train, y_train=y_train,
+    #                           patience=150, max_epochs=10,
+    #                           eval_metric=['rmse'])
 
     # tabnet_regression = TabNetRegressor(verbose=verbose, seed=42)
-    return model.tabnet_model
+    return  model.tabnet
 
 def get_feature_importance(p, weight_scores=False):
     # Calculate weights from MLP

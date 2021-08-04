@@ -7,10 +7,10 @@ from knockpy.knockoff_filter import KnockoffFilter
 from tabnet import get_data
 # This setting replicates the DeepPINK paper (Lu et al. 2018)
 np.random.seed(123)
-# all_p = [23, 50, 100, 200, 400, 600, 800, 1000, 1500, 2000, 2500, 3000]
-all_p = [50]
+all_p = [50, 100, 200, 400, 600, 800, 1000, 1500, 2000, 2500, 3000]
+# all_p = [50, 100]
 # all_models = ['tabnet', 'deeppink', 'newdeeppink', 'lasso']
-all_models = ['tabnet']
+all_models = ['newdeeppink']
 number_of_data_points = 1000
 
 

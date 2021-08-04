@@ -62,7 +62,85 @@ class NewDeepPinkModel(nn.Module):
         self.feature_inds = self.rev_inds[0:self.p]
         self.ko_inds = self.rev_inds[self.p:]
 
-        k=p
+        # Prepare for either MSE loss or cross entropy loss
+
+        hidden_size = 32 * 16
+        sign_size1 = 32
+        sign_size2 = 32 // 2
+        output_size = (32 // 4) * 32
+
+        self.hidden_size = hidden_size
+        self.cha_input = 16
+        self.cha_hidden = 32
+        self.K = 2
+        self.sign_size1 = sign_size1
+        self.sign_size2 = sign_size2
+        self.output_size = output_size
+        self.dropout_input = 0.2
+        self.dropout_hidden = 0.2
+        self.dropout_output = 0.2
+
+        self.first_layer = nn.Linear(p, hidden_sizes[0])
+        self.batch_norm1 = nn.BatchNorm1d(hidden_sizes[0])
+        self.dropout1 = nn.Dropout(0.2)
+        dense1 = nn.Linear(hidden_sizes[0], hidden_size, bias=False)
+        self.dense1 = nn.utils.weight_norm(dense1)
+        # 1st conv layer
+        self.batch_norm_c1 = nn.BatchNorm1d(self.cha_input)
+        conv1 = conv1 = nn.Conv1d(
+            self.cha_input,
+            self.cha_input * self.K,
+            kernel_size=5,
+            stride=1,
+            padding=2,
+            groups=self.cha_input,
+            bias=False)
+        self.conv1 = nn.utils.weight_norm(conv1, dim=None)
+        self.ave_po_c1 = nn.AdaptiveAvgPool1d(output_size=sign_size2)
+
+        # 2nd conv layer
+        self.batch_norm_c2 = nn.BatchNorm1d(self.cha_input * self.K)
+        self.dropout_c2 = nn.Dropout(self.dropout_hidden)
+        conv2 = nn.Conv1d(
+            self.cha_input * self.K,
+            self.cha_hidden,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            bias=False)
+        self.conv2 = nn.utils.weight_norm(conv2, dim=None)
+
+        # 3rd conv layer
+        self.batch_norm_c3 = nn.BatchNorm1d(self.cha_hidden)
+        self.dropout_c3 = nn.Dropout(self.dropout_hidden)
+        conv3 = nn.Conv1d(
+            self.cha_hidden,
+            self.cha_hidden,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            bias=False)
+        self.conv3 = nn.utils.weight_norm(conv3, dim=None)
+        # 4th conv layer
+        self.batch_norm_c4 = nn.BatchNorm1d(self.cha_hidden)
+        conv4 = nn.Conv1d(
+            self.cha_hidden,
+            self.cha_hidden,
+            kernel_size=5,
+            stride=1,
+            padding=2,
+            groups=self.cha_hidden,
+            bias=False)
+        self.conv4 = nn.utils.weight_norm(conv4, dim=None)
+        self.avg_po_c4 = nn.AvgPool1d(kernel_size=4, stride=2, padding=1)
+        self.flt = nn.Flatten()
+        self.batch_norm2 = nn.BatchNorm1d(output_size)
+        self.dropout2 = nn.Dropout(self.dropout_output)
+        dense2 = nn.Linear(output_size, 1, bias=False)
+        self.dense2 = nn.utils.weight_norm(dense2)
+        self.loss = nn.BCEWithLogitsLoss()
+
+        # k=p
 
         # Create MLP layers
         # mlp_layers = [nn.Linear(p, hidden_sizes[0])]
@@ -112,8 +190,41 @@ class NewDeepPinkModel(nn.Module):
         features = self._fetch_Z_weight().unsqueeze(dim=0) * features
         features = features[:, self.feature_inds] - features[:, self.ko_inds]
 
-        # Apply MLP
-        return self.mlp(features)
+        x = nn.functional.relu(self.first_layer(features))
+        x = self.batch_norm1(x)
+        x = self.dropout1(x)
+        x = nn.functional.celu(self.dense1(x))
+
+        x = x.reshape(x.shape[0], self.cha_input, self.sign_size1)
+
+        x = self.batch_norm_c1(x)
+        x = nn.functional.relu(self.conv1(x))
+
+        x = self.ave_po_c1(x)
+
+        x = self.batch_norm_c2(x)
+        x = self.dropout_c2(x)
+        x = nn.functional.relu(self.conv2(x))
+        x_s = x
+
+        x = self.batch_norm_c3(x)
+        x = self.dropout_c3(x)
+        x = nn.functional.relu(self.conv3(x))
+
+        x = self.batch_norm_c4(x)
+        x = self.conv4(x)
+        x = x + x_s
+        x = nn.functional.relu(x)
+
+        x = self.avg_po_c4(x)
+
+        x = self.flt(x)
+
+        x = self.batch_norm2(x)
+        x = self.dropout2(x)
+        x = self.dense2(x)
+
+        return x
 
     def predict(self, features):
         """
@@ -123,35 +234,35 @@ class NewDeepPinkModel(nn.Module):
         with torch.no_grad():
             return self.forward(features).numpy()
 
-    def l1norm(self):
-        out = 0
-        for parameter in self.mlp.parameters():
-            out += torch.abs(parameter).sum()
-        out += torch.abs(self.Z_weight).sum()  # This is just for stability
-        return out
-
-    def l2norm(self):
-        out = 0
-        for parameter in self.mlp.parameters():
-            out += (parameter ** 2).sum()
-        out += (self.Z_weight ** 2).sum()
-        return out
+    # def l1norm(self):
+    #     out = 0
+    #     for parameter in self.mlp.parameters():
+    #         out += torch.abs(parameter).sum()
+    #     out += torch.abs(self.Z_weight).sum()  # This is just for stability
+    #     return out
+    #
+    # def l2norm(self):
+    #     out = 0
+    #     for parameter in self.mlp.parameters():
+    #         out += (parameter ** 2).sum()
+    #     out += (self.Z_weight ** 2).sum()
+    #     return out
 
     def feature_importances(self, weight_scores=True):
         with torch.no_grad():
-            # Calculate weights from MLP
-            if weight_scores:
-                layers = list(self.mlp.named_children())
-                W = layers[0][1].weight.detach().numpy().T
-                for layer in layers[1:]:
-                    if isinstance(layer[1], nn.ReLU):
-                        continue
-                    weight = layer[1].weight.detach().numpy().T
-                    W = np.dot(W, weight)
-                    W = W.squeeze()
-                    # print(W.shape)
-            else:
-                W = np.ones(self.p)
+            # # Calculate weights from MLP
+            # if weight_scores:
+            #     layers = list(self.mlp.named_children())
+            #     W = layers[0][1].weight.detach().numpy().T
+            #     for layer in layers[1:]:
+            #         if isinstance(layer[1], nn.ReLU):
+            #             continue
+            #         weight = layer[1].weight.detach().numpy().T
+            #         W = np.dot(W, weight)
+            #         W = W.squeeze()
+            #         # print(W.shape)
+            # else:
+            W = np.ones(self.p)
 
             # Multiply by Z weights
             Z = self._fetch_Z_weight().numpy()
@@ -201,15 +312,14 @@ def train_newdeeppink(
         batches = create_batches(features, y, batchsize=batchsize)
         predictive_loss = 0
         for Xbatch, ybatch in batches:
-
             # Forward pass and loss
             output = model(Xbatch)
             loss = criterion(output, ybatch.unsqueeze(-1))
             predictive_loss += loss
 
             # Add l1 and l2 regularization
-            loss += lambda1 * model.l1norm()
-            loss += lambda2 * model.l2norm()
+            # loss += lambda1 * model.l1norm()
+            # loss += lambda2 * model.l2norm()
 
             # Step
             opt.zero_grad()
