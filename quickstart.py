@@ -9,8 +9,8 @@ from tabnet import get_data
 np.random.seed(123)
 all_p = [50, 100, 200, 400, 600, 800, 1000, 1500, 2000, 2500, 3000]
 # all_p = [50, 100]
-# all_models = ['tabnet', 'deeppink', 'newdeeppink', 'lasso']
-all_models = ['newdeeppink']
+all_models = ['deeppink', 'newdeeppink', 'lasso']
+# all_models = ['newdeeppink']
 number_of_data_points = 1000
 
 
@@ -25,7 +25,7 @@ def calc_model(model, number_of_data_points):
     for p in all_p:
         sigma, s, beta = get_attribiutes(p)
         n = number_of_data_points  # number of data points
-        reps = 10 if model is not "tabnet" else 1
+        reps = 10
         powers = np.zeros(reps)
         fdps = np.zeros(reps)
         for j in range(reps):
@@ -33,7 +33,6 @@ def calc_model(model, number_of_data_points):
             X = np.random.multivariate_normal(mean=np.zeros(p), cov=sigma, size=(n,))
             y = np.dot(X, beta) + np.random.randn(n)
             # X, y, _ = get_data()
-            # Fit deeppink
             kfilter = KnockoffFilter(
                 ksampler='gaussian',
                 fstat=model,
