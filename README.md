@@ -18,8 +18,8 @@ git clone https://github.com/tomerkeren42/DeePINK-BiggerNet.git
 pip install -r requirements.txt
 ```
 3. Run python quickstart.py OR use the attached script for running the program, start_evaluate_deePINK_extension.py
-```
-5.Enjoy!
+
+4.Enjoy!
 
 ## References:
  <a href="https://arxiv.org/abs/1809.01185">Original DeePINK paper</a>
