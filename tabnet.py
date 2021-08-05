@@ -1,7 +1,5 @@
-from sklearn.model_selection import KFold
 from pytorch_tabnet.tab_model import TabNetRegressor
 import numpy as np
-import pandas as pd
 from torch import nn
 import torch
 import knockpy.utilities
