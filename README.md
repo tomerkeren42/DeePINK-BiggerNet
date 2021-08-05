@@ -8,7 +8,7 @@ An add-on for DeePINK paper implementation, using a bigger, more complex CNN and
     <a href="https://github.com/tomerkeren42">Tomer Keren</a>
   </p>
 
-### Running the algorithm ###
+### Running the program ###
 1. Download repo either by pressing "Download ZIP" under the green button or use clone command
 ```
 git clone https://github.com/tomerkeren42/DeePINK-BiggerNet.git
