@@ -238,7 +238,7 @@ class KnockoffFilter:
     def make_selections(self, W, fdr):
         """" Calculate data dependent threshhold and selections """
         self.threshold = kstats.data_dependent_threshhold(W=W, fdr=fdr)
-        print(f"self.threshold: {self.threshold}")
+        # print(f"self.threshold: {self.threshold}")
         # print(self.threshold)
         selected_flags = (W >= self.threshold).astype("float32")
         return selected_flags

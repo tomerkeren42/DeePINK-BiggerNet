@@ -9,8 +9,8 @@ np.random.seed(123)
 all_p = [50, 100, 200, 400, 600, 800, 1000, 1500, 2000, 2500, 3000]
 # all_p = [50, 100]
 
-all_models = ['deeppink', 'newdeeppink', 'lasso']
-# all_models = ['newdeeppink']
+# all_models = ['deeppink', 'newdeeppink', 'lasso']
+all_models = ['newdeeppink']
 number_of_data_points = 1000
 
 
@@ -45,7 +45,7 @@ def calc_model(evaluate_model, num_of_data_points):
             fdp = np.dot(rej, beta == 0) / max(1, rej.sum())
             fdps[j] = fdp
             powers[j] = power
-            # print(f"{model} at iteration j={j}, power={power}, fdp={fdp}, number of rej = {rej.sum()}")
+            print(f"{evaluate_model} at iteration j={j}, power={power}, fdp={fdp}, number of rej = {rej.sum()}")
         print(f"{evaluate_model} with n={num_of_data_points} and p={p} | power mean={powers.mean()} | std={powers.std() / np.sqrt(reps)} | FDP Mean={fdps.mean()}")
 
 
